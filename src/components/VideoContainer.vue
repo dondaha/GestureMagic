@@ -25,6 +25,8 @@ export default {
             webcamRunning: true, // 摄像头是否正在运行
             results: undefined, // 识别结果
             handState: undefined, // 手势状态："PAINT", "ERASE" 或 "NONE" 分别是画笔、清屏和无状态
+            pics: undefined, // 用来显示在人脸上的图像类型（'hat','mustache','glasses','nose', undefined）
+            trajectory: [], // 记录轨迹的数组
         }
     },
     mounted() {
@@ -128,6 +130,17 @@ export default {
                         color: "#FF0000",
                         lineWidth: 1
                     });
+
+                    if (this.handState === "PAINT") {
+                        const thumbTip = mirroredLandmarks[4];
+                        const indexTip = mirroredLandmarks[8];
+                        const midPoint = {
+                            x: (thumbTip.x + indexTip.x) / 2,
+                            y: (thumbTip.y + indexTip.y) / 2
+                        };
+                        this.trajectory.push(midPoint);
+                        this.drawTrajectory(canvasCtx);
+                    }
                 }
                 this.poseDetected(this.results);
             }
@@ -138,9 +151,27 @@ export default {
                 window.requestAnimationFrame(this.predictWebcam);
             }
         },
+        drawTrajectory(ctx) {
+            if (this.trajectory.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 5;
+            for (let i = 1; i < this.trajectory.length; i++) {
+                ctx.moveTo(this.trajectory[i - 1].x * ctx.canvas.width, this.trajectory[i - 1].y * ctx.canvas.height);
+                ctx.lineTo(this.trajectory[i].x * ctx.canvas.width, this.trajectory[i].y * ctx.canvas.height);
+            }
+            ctx.stroke();
+        },
         poseDetected(results) {
-            // console.log("Pose detected:", results);
             this.inferState(results);
+            if (this.handState === "NONE" || this.handState === "ERASE") {
+                if (this.handState === "ERASE") {
+                    this.pics = undefined;
+                } else {
+                    this.recognizeTrajectory(this.trajectory);
+                }
+                this.trajectory = [];
+            }
         },
         inferState(results) {
             // 识别手势状态
@@ -194,6 +225,25 @@ export default {
             let z2 = p3.z - p4.z;
             let cos = (x1 * x2 + y1 * y2 + z1 * z2) / (Math.sqrt(x1 * x1 + y1 * y1 + z1 * z1) * Math.sqrt(x2 * x2 + y2 * y2 + z2 * z2));
             return Math.acos(cos) * 180 / Math.PI;
+        },
+        recognizeTrajectory(trajectory) {
+            // 调用KNN识别函数，暂时不写完整
+            const recognizedType = this.knnRecognize(trajectory);
+            if (recognizedType) {
+                this.pics = recognizedType;
+                this.applySticker(recognizedType);
+            }
+        },
+        knnRecognize(trajectory) {
+            // KNN识别逻辑，暂时不写完整
+            return ['hat', 'mustache', 'glasses', 'nose'][Math.floor(Math.random() * 4)];
+        },
+        applySticker(type) {
+            // 随机选择一个贴图
+            const randomIndex = Math.floor(Math.random() * 3) + 1;
+            const imgPath = `/GestureMagic/imgs/${type}${randomIndex}.png`;
+            // 贴图逻辑，暂时不写完整
+            console.log(`Applying sticker: ${imgPath}`);
         }
     }
 }
