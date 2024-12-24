@@ -24,6 +24,7 @@ export default {
             runningMode: "VIDEO", // 运行模式
             webcamRunning: true, // 摄像头是否正在运行
             results: undefined, // 识别结果
+            handState: undefined, // 手势状态："PAINT", "ERASE" 或 "NONE" 分别是画笔、清屏和无状态
         }
     },
     mounted() {
@@ -138,7 +139,61 @@ export default {
             }
         },
         poseDetected(results) {
-            console.log("Pose detected:", results);
+            // console.log("Pose detected:", results);
+            this.inferState(results);
+        },
+        inferState(results) {
+            // 识别手势状态
+            if (results.landmarks[0]) {
+                // 找到results.landmarks[0][i]的最大最小值
+                let minX = results.landmarks[0][0].x;
+                let maxX = results.landmarks[0][0].x;
+                let minY = results.landmarks[0][0].y;
+                let maxY = results.landmarks[0][0].y;
+                for (let i = 1; i < results.landmarks[0].length; i++) {
+                    if (results.landmarks[0][i].x < minX) {
+                        minX = results.landmarks[0][i].x;
+                    }
+                    if (results.landmarks[0][i].x > maxX) {
+                        maxX = results.landmarks[0][i].x;
+                    }
+                    if (results.landmarks[0][i].y < minY) {
+                        minY = results.landmarks[0][i].y;
+                    }
+                    if (results.landmarks[0][i].y > maxY) {
+                        maxY = results.landmarks[0][i].y;
+                    }
+                }
+                let x1 = results.landmarks[0][4].x;
+                let y1 = results.landmarks[0][4].y;
+                let x2 = results.landmarks[0][8].x;
+                let y2 = results.landmarks[0][8].y;
+                let dis = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+                if (dis / (maxX - minX + maxY - minY) < 0.1 ){
+                    this.handState = "PAINT";
+                } else {
+                    // 如果每个手指都伸直，则None
+                    if (this.calculateAngle(results.landmarks[0][0],results.landmarks[0][1],results.landmarks[0][2],results.landmarks[0][3]) < 30 &&
+                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][5],results.landmarks[0][6],results.landmarks[0][7]) < 30 &&
+                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][9],results.landmarks[0][10],results.landmarks[0][11]) < 30 &&
+                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][13],results.landmarks[0][14],results.landmarks[0][15]) < 30 &&
+                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][17],results.landmarks[0][18],results.landmarks[0][19]) < 30){
+                        this.handState = "NONE";
+                    } else {
+                        this.handState = "ERASE";
+                    }
+                }
+                console.log(this.handState);
+            }
+        },
+        calculateAngle(p1,p2,p3,p4){
+            // 计算P2P1和P3P4的夹角
+            let x1 = p1.x - p2.x;
+            let y1 = p1.y - p2.y;
+            let x2 = p3.x - p4.x;
+            let y2 = p3.y - p4.y;
+            let cos = (x1 * x2 + y1 * y2) / (Math.sqrt(x1 * x1 + y1 * y1) * Math.sqrt(x2 * x2 + y2 * y2));
+            return Math.acos(cos) * 180 / Math.PI;
         }
     }
 }
