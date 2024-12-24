@@ -172,15 +172,13 @@ export default {
                 if (dis / (maxX - minX + maxY - minY) < 0.1 ){
                     this.handState = "PAINT";
                 } else {
-                    // 如果每个手指都伸直，则None
-                    if (this.calculateAngle(results.landmarks[0][0],results.landmarks[0][1],results.landmarks[0][2],results.landmarks[0][3]) < 30 &&
-                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][5],results.landmarks[0][6],results.landmarks[0][7]) < 30 &&
-                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][9],results.landmarks[0][10],results.landmarks[0][11]) < 30 &&
-                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][13],results.landmarks[0][14],results.landmarks[0][15]) < 30 &&
-                        this.calculateAngle(results.landmarks[0][0],results.landmarks[0][17],results.landmarks[0][18],results.landmarks[0][19]) < 30){
-                        this.handState = "NONE";
-                    } else {
+                    if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 60 &&
+                        this.calculateAngle(results.landmarks[0][12], results.landmarks[0][11], results.landmarks[0][10], results.landmarks[0][9]) > 60 &&
+                        this.calculateAngle(results.landmarks[0][16], results.landmarks[0][15], results.landmarks[0][14], results.landmarks[0][13]) > 60 &&
+                        this.calculateAngle(results.landmarks[0][20], results.landmarks[0][19], results.landmarks[0][18], results.landmarks[0][17]) > 60) {
                         this.handState = "ERASE";
+                    } else {
+                        this.handState = "NONE";
                     }
                 }
                 console.log(this.handState);
@@ -190,9 +188,11 @@ export default {
             // 计算P2P1和P3P4的夹角
             let x1 = p1.x - p2.x;
             let y1 = p1.y - p2.y;
+            let z1 = p1.z - p2.z;
             let x2 = p3.x - p4.x;
             let y2 = p3.y - p4.y;
-            let cos = (x1 * x2 + y1 * y2) / (Math.sqrt(x1 * x1 + y1 * y1) * Math.sqrt(x2 * x2 + y2 * y2));
+            let z2 = p3.z - p4.z;
+            let cos = (x1 * x2 + y1 * y2 + z1 * z2) / (Math.sqrt(x1 * x1 + y1 * y1 + z1 * z1) * Math.sqrt(x2 * x2 + y2 * y2 + z2 * z2));
             return Math.acos(cos) * 180 / Math.PI;
         }
     }
