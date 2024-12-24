@@ -13,7 +13,8 @@
 import {
     GestureRecognizer,
     FilesetResolver,
-    DrawingUtils
+    DrawingUtils,
+    FaceDetector
 } from "@mediapipe/tasks-vision";
 
 export default {
@@ -24,14 +25,18 @@ export default {
             runningMode: "VIDEO", // 运行模式
             webcamRunning: true, // 摄像头是否正在运行
             results: undefined, // 识别结果
+            lasthandState: undefined, // 上一帧的手势状态
             handState: undefined, // 手势状态："PAINT", "ERASE" 或 "NONE" 分别是画笔、清屏和无状态
             pics: undefined, // 用来显示在人脸上的图像类型（'hat','mustache','glasses','nose', undefined）
             trajectory: [], // 记录轨迹的数组
+            faceDetector: undefined, // 人脸识别器
+            faceResults: undefined, // 人脸识别结果
         }
     },
     mounted() {
         this.loadDrawingUtils();
         this.createGestureLandmarker();
+        this.createFaceDetector();
         this.enableCam();
     },
     methods: {
@@ -56,6 +61,18 @@ export default {
                 numHands: this.numHands
             });
         },
+        async createFaceDetector() {
+            const vision = await FilesetResolver.forVisionTasks(
+                "/GestureMagic/wasm"
+            );
+            this.faceDetector = await FaceDetector.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: `/GestureMagic/blaze_face_short_range.tflite`,
+                    delegate: "GPU"
+                },
+                runningMode: this.runningMode
+            });
+        },
         enableCam() {
             const constraints = {
                 video: true
@@ -66,7 +83,7 @@ export default {
             });
         },
         async predictWebcam() {
-            if (!this.drawUtilsLoaded || !this.gestureRecognizer) {
+            if (!this.drawUtilsLoaded || !this.gestureRecognizer || !this.faceDetector) {
                 requestAnimationFrame(this.predictWebcam);
                 return;
             }
@@ -81,6 +98,7 @@ export default {
             if (this.runningMode === "IMAGE") {
                 this.runningMode = "VIDEO";
                 await this.gestureRecognizer.setOptions({ runningMode: "VIDEO" });
+                await this.faceDetector.setOptions({ runningMode: "VIDEO" });
             }
 
             const startTimeMs = performance.now();
@@ -103,10 +121,12 @@ export default {
 
                 // 将翻转后的图像数据传递给gestureRecognizer进行检测
                 this.results = await this.gestureRecognizer.recognizeForVideo(flippedImageData, startTimeMs);
+                // 将翻转后的图像数据传递给faceDetector进行检测
+                this.faceResults = await this.faceDetector.detectForVideo(flippedImageData, startTimeMs);
             }
 
             canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
 
             // 应用水平翻转变换
             canvasCtx.translate(canvas.width, 0);
@@ -115,35 +135,15 @@ export default {
 
             // 绘制Pose关键点和连接线
             if (this.results.landmarks) {
-                const drawingUtils = new DrawingUtils(canvasCtx);
-                for (const landmarks of this.results.landmarks) {
-                    // 水平翻转关键点
-                    const mirroredLandmarks = landmarks.map(point => ({
-                        ...point,
-                        x: 1 - point.x
-                    }));
-                    drawingUtils.drawConnectors(mirroredLandmarks, GestureRecognizer.HAND_CONNECTIONS, {
-                        color: "#00FF00",
-                        lineWidth: 5
-                    });
-                    drawingUtils.drawLandmarks(mirroredLandmarks, {
-                        color: "#FF0000",
-                        lineWidth: 1
-                    });
-
-                    if (this.handState === "PAINT") {
-                        const thumbTip = mirroredLandmarks[4];
-                        const indexTip = mirroredLandmarks[8];
-                        const midPoint = {
-                            x: (thumbTip.x + indexTip.x) / 2,
-                            y: (thumbTip.y + indexTip.y) / 2
-                        };
-                        this.trajectory.push(midPoint);
-                        this.drawTrajectory(canvasCtx);
-                    }
-                }
+                this.drawGestureResults(canvasCtx);
                 this.poseDetected(this.results);
             }
+
+            // 绘制人脸关键点和贴图
+            if (this.faceResults && this.faceResults.detections) {
+                this.drawFaceDetections(canvasCtx, this.faceResults.detections);
+            }
+
             canvasCtx.restore(); // 恢复上下文状态
 
             // Call this function again to keep predicting when the browser is ready.
@@ -160,7 +160,63 @@ export default {
                 ctx.moveTo(this.trajectory[i - 1].x * ctx.canvas.width, this.trajectory[i - 1].y * ctx.canvas.height);
                 ctx.lineTo(this.trajectory[i].x * ctx.canvas.width, this.trajectory[i].y * ctx.canvas.height);
             }
-            ctx.stroke();
+            ctx.stroke(); // 绘制轨迹
+        },
+        drawGestureResults(ctx) {
+            const drawingUtils = new DrawingUtils(ctx);
+            for (const landmarks of this.results.landmarks) {
+                // 水平翻转关键点
+                const mirroredLandmarks = landmarks.map(point => ({
+                    ...point,
+                    x: 1 - point.x
+                }));
+                drawingUtils.drawConnectors(mirroredLandmarks, GestureRecognizer.HAND_CONNECTIONS, {
+                    color: "#00FF00",
+                    lineWidth: 5
+                });
+                drawingUtils.drawLandmarks(mirroredLandmarks, {
+                    color: "#FF0000",
+                    lineWidth: 1
+                });
+
+                if (this.handState === "PAINT") {
+                    const thumbTip = mirroredLandmarks[4];
+                    const indexTip = mirroredLandmarks[8];
+                    const midPoint = {
+                        x: (thumbTip.x + indexTip.x) / 2,
+                        y: (thumbTip.y + indexTip.y) / 2
+                    };
+                    this.trajectory.push(midPoint);
+                    this.drawTrajectory(ctx);
+                }
+            }
+        },
+        drawFaceDetections(ctx, detections) {
+            for (const detection of detections) {
+                // const keypoints = detection.keypoints;
+                // 水平翻转关键点
+                const keypoints = detection.keypoints.map(point => ({
+                    ...point,
+                    x: 1 - point.x
+                }));
+                const boundingBox = detection.boundingBox;
+                // 尝试放一个红色块
+                ctx.fillStyle = "red";
+                ctx.fillRect(
+                    200, 200, 40, 40
+                );
+                // 绘制关键点和标号
+                ctx.fillStyle = "red";
+                ctx.font = "10px Arial";
+                keypoints.forEach((keypoint, index) => {
+                    const x = keypoint.x * ctx.canvas.width;
+                    const y = keypoint.y * ctx.canvas.height;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillText(index, x + 5, y - 5);
+                });
+            }
         },
         poseDetected(results) {
             this.inferState(results);
@@ -168,7 +224,9 @@ export default {
                 if (this.handState === "ERASE") {
                     this.pics = undefined;
                 } else {
-                    this.recognizeTrajectory(this.trajectory);
+                    if (this.lasthandState === "PAINT") {
+                        this.recognizeTrajectory(this.trajectory);
+                    }
                 }
                 this.trajectory = [];
             }
@@ -176,6 +234,7 @@ export default {
         inferState(results) {
             // 识别手势状态
             if (results.landmarks[0]) {
+                this.lasthandState = this.handState;
                 // 找到results.landmarks[0][i]的最大最小值
                 let minX = results.landmarks[0][0].x;
                 let maxX = results.landmarks[0][0].x;
@@ -200,7 +259,7 @@ export default {
                 let x2 = results.landmarks[0][8].x;
                 let y2 = results.landmarks[0][8].y;
                 let dis = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
-                if (dis / (maxX - minX + maxY - minY) < 0.1 ){
+                if (dis / (maxX - minX + maxY - minY) < 0.1) {
                     this.handState = "PAINT";
                 } else {
                     if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 60 &&
@@ -212,10 +271,10 @@ export default {
                         this.handState = "NONE";
                     }
                 }
-                console.log(this.handState);
+                // console.log(this.handState);
             }
         },
-        calculateAngle(p1,p2,p3,p4){
+        calculateAngle(p1, p2, p3, p4) {
             // 计算P2P1和P3P4的夹角
             let x1 = p1.x - p2.x;
             let y1 = p1.y - p2.y;
@@ -243,7 +302,7 @@ export default {
             const randomIndex = Math.floor(Math.random() * 3) + 1;
             const imgPath = `/GestureMagic/imgs/${type}${randomIndex}.png`;
             // 贴图逻辑，暂时不写完整
-            console.log(`Applying sticker: ${imgPath}`);
+            // console.log(`Applying sticker: ${imgPath}`);
         }
     }
 }
