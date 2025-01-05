@@ -1,19 +1,19 @@
 <template>
     <div class="middle">
         <div>
-            <img src="/GestureMagic/static/帽子.png" alt="帽子" />
+            <img src="@/static/帽子.png" alt="帽子" />
             <span class="shape_name">帽子</span>
         </div>
         <div>
-            <img src="/GestureMagic/static/胡子.png" alt="胡子" />
+            <img src="@/static/胡子.png" alt="胡子" />
             <span class="shape_name">胡子</span>
         </div>
         <div>
-            <img src="/GestureMagic/static/眼镜.png" alt="眼镜" />
+            <img src="@/static/眼镜.png" alt="眼镜" />
             <span class="shape_name">眼镜</span>
         </div>
         <div>
-            <img src="/GestureMagic/static/bizi.png" alt="鼻子" />
+            <img src="@/static/bizi.png" alt="鼻子" />
             <span class="shape_name">鼻子</span>
         </div>
     </div>

@@ -1,6 +1,6 @@
 <template>
   <div class="bottom">
-    <img id="bg" src="/GestureMagic/static/bgc.jpg" alt="Background Image" />
+    <img id="bg" src="@/static/bgc.jpg" alt="Background Image" />
   </div>
 </template>
 

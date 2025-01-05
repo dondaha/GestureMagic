@@ -5,6 +5,8 @@
             <video ref="video" class="camera-feed" autoplay></video>
             <!-- 画布用于绘制手势识别结果 -->
             <canvas ref="canvas" class="camera-overlay"></canvas>
+            <!-- 画布用于绘制叠加在人脸上的图像 -->
+            <canvas ref="imgCanvas" class="camera-overlay"></canvas>
         </div>
     </div>
 </template>
@@ -89,11 +91,18 @@ export default {
             }
 
             const video = this.$refs.video;
+            // 可视化画布
             const canvas = this.$refs.canvas;
             const canvasCtx = canvas.getContext("2d");
+            // 贴图画布
+            const imgCanvas = this.$refs.imgCanvas;
+            const imgCanvasCtx = imgCanvas.getContext("2d");
 
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
+
+            imgCanvas.width = video.videoWidth;
+            imgCanvas.height = video.videoHeight;
 
             if (this.runningMode === "IMAGE") {
                 this.runningMode = "VIDEO";
@@ -139,7 +148,7 @@ export default {
                 this.poseDetected(this.results);
             }
 
-            // 绘制人脸关键点和贴图
+            // 绘制人脸关键点
             if (this.faceResults && this.faceResults.detections) {
                 this.drawFaceDetections(canvasCtx, this.faceResults.detections);
             }
@@ -201,10 +210,10 @@ export default {
                 }));
                 const boundingBox = detection.boundingBox;
                 // 尝试放一个红色块
-                ctx.fillStyle = "red";
-                ctx.fillRect(
-                    200, 200, 40, 40
-                );
+                // ctx.fillStyle = "red";
+                // ctx.fillRect(
+                //     200, 200, 40, 40
+                // );
                 // 绘制关键点和标号
                 ctx.fillStyle = "red";
                 ctx.font = "10px Arial";
@@ -259,7 +268,7 @@ export default {
                 let x2 = results.landmarks[0][8].x;
                 let y2 = results.landmarks[0][8].y;
                 let dis = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
-                if (dis / (maxX - minX + maxY - minY) < 0.1) {
+                if (dis / (maxX - minX + maxY - minY) < 0.15) {
                     this.handState = "PAINT";
                 } else {
                     if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 60 &&
