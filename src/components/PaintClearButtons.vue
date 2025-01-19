@@ -1,11 +1,11 @@
 <template>
   <div class="top">
     <div class="paint">
-      <img src="@/static/绘图.png" alt="绘图" />
+      <img src="/static/绘图.png" alt="绘图" />
       <span>绘图</span>
     </div>
     <div class="clear">
-      <img src="@/static/清除.png" alt="清除" />
+      <img src="/static/清除.png" alt="清除" />
       <span>清除</span>
     </div>
   </div>

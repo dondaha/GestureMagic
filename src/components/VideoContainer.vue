@@ -2,7 +2,7 @@
     <div class="right">
         <div class="camera-container">
             <!-- 视频流显示 -->
-            <video ref="video" class="camera-feed" autoplay></video>
+            <video ref="video" class="camera-feed" autoplay style="transform: scaleX(-1);"></video>
             <!-- 画布用于绘制手势识别结果 -->
             <canvas ref="canvas" class="camera-overlay"></canvas>
             <!-- 画布用于绘制叠加在人脸上的图像 -->
@@ -30,13 +30,20 @@ export default {
             lasthandState: undefined, // 上一帧的手势状态
             handState: undefined, // 手势状态："PAINT", "ERASE" 或 "NONE" 分别是画笔、清屏和无状态
             pics: undefined, // 用来显示在人脸上的图像类型（'hat','mustache','glasses','nose', undefined）
+            pic_num: 0, // 用来显示在人脸上的图像编号，可以是0，1，2
             trajectory: [], // 记录轨迹的数组
             faceDetector: undefined, // 人脸识别器
             faceResults: undefined, // 人脸识别结果
+            // 保存贴图的变量
+            glass: [],
+            hat: [],
+            mustache: [],
+            nose: []
         }
     },
     mounted() {
         this.loadDrawingUtils();
+        this.loadImage();
         this.createGestureLandmarker();
         this.createFaceDetector();
         this.enableCam();
@@ -49,6 +56,23 @@ export default {
                 this.drawUtilsLoaded = true;
             };
             document.head.appendChild(script);
+        },
+        loadImage(){
+            const imagePaths = {
+                glass: ['/GestureMagic/imgs/glasses1.png', '/GestureMagic/imgs/glasses2.png', '/GestureMagic/imgs/glasses3.png'],
+                hat: ['/GestureMagic/imgs/hat1.png', '/GestureMagic/imgs/hat2.png', '/GestureMagic/imgs/hat3.png'],
+                mustache: ['/GestureMagic/imgs/mustache1.png', '/GestureMagic/imgs/mustache2.png', '/GestureMagic/imgs/mustache3.png'],
+                nose: ['/GestureMagic/imgs/nose1.png', '/GestureMagic/imgs/nose2.png', '/GestureMagic/imgs/nose3.png']
+            };
+            for (const [key, paths] of Object.entries(imagePaths)) {
+                paths.forEach(path => {
+                    const img = new Image();
+                    img.src = path;
+                    img.onload = () => {
+                        this[key].push(img);
+                    };
+                });
+            }
         },
         async createGestureLandmarker() {
             const vision = await FilesetResolver.forVisionTasks(
@@ -113,34 +137,18 @@ export default {
             const startTimeMs = performance.now();
             if (this.lastVideoTime !== video.currentTime) {
                 this.lastVideoTime = video.currentTime;
-
-                // 创建一个临时canvas用于水平翻转视频帧
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = video.videoWidth;
-                tempCanvas.height = video.videoHeight;
-
-                // 水平翻转视频帧
-                tempCtx.translate(tempCanvas.width, 0);
-                tempCtx.scale(-1, 1);
-                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-
                 // 获取翻转后的图像数据
-                const flippedImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvasCtx.getImageData(0, 0, canvas.width, canvas.height);
 
                 // 将翻转后的图像数据传递给gestureRecognizer进行检测
-                this.results = await this.gestureRecognizer.recognizeForVideo(flippedImageData, startTimeMs);
+                this.results = await this.gestureRecognizer.recognizeForVideo(imageData, startTimeMs);
                 // 将翻转后的图像数据传递给faceDetector进行检测
-                this.faceResults = await this.faceDetector.detectForVideo(flippedImageData, startTimeMs);
+                this.faceResults = await this.faceDetector.detectForVideo(imageData, startTimeMs);
             }
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
-
-            // 应用水平翻转变换
-            canvasCtx.translate(canvas.width, 0);
-            canvasCtx.scale(-1, 1);
-            canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             // 绘制Pose关键点和连接线
             if (this.results.landmarks) {
@@ -148,12 +156,89 @@ export default {
                 this.poseDetected(this.results);
             }
 
+            
+
+            canvasCtx.restore(); // 恢复上下文状态
+
+            // 根据情况绘制贴图
+            if (this.pics && this[this.pics].length > 0 && this.faceResults && this.faceResults.detections && this.faceResults.detections.length > 0) {
+                const img = this[this.pics][this.pic_num];
+                let x,y,w,h=0;
+                // 考虑glass的情况
+                if (this.pics === 'glass') {
+                    const eyes_distance = Math.sqrt(
+                        (canvas.width*this.faceResults.detections[0].keypoints[1].x - canvas.width*this.faceResults.detections[0].keypoints[0].x) ** 2 +
+                        (canvas.height*this.faceResults.detections[0].keypoints[1].y - canvas.height*this.faceResults.detections[0].keypoints[0].y) ** 2
+                    );
+                    const eyes_avg_x = (canvas.width*this.faceResults.detections[0].keypoints[1].x + canvas.width*this.faceResults.detections[0].keypoints[0].x) / 2;
+                    const eyes_avg_y = (canvas.height*this.faceResults.detections[0].keypoints[1].y + canvas.height*this.faceResults.detections[0].keypoints[0].y) / 2;
+                    x = eyes_avg_x + eyes_distance*1.0;
+                    y = eyes_avg_y - eyes_distance*0.5;
+                    w = eyes_distance * 2.0;
+                    h = eyes_distance * 1.0;
+                }
+                // 考虑hat的情况
+                if (this.pics == 'hat'){
+                    // 先求出0，1关键点的中点
+                    const head_mid_x = (canvas.width*this.faceResults.detections[0].keypoints[0].x + canvas.width*this.faceResults.detections[0].keypoints[1].x) / 2;
+                    const head_mid_y = (canvas.height*this.faceResults.detections[0].keypoints[0].y + canvas.height*this.faceResults.detections[0].keypoints[1].y) / 2;
+                    // 眼睛中点到嘴巴中点的向量
+                    const eye_to_mouth_x = canvas.width*this.faceResults.detections[0].keypoints[3].x - head_mid_x;
+                    const eye_to_mouth_y = canvas.height*this.faceResults.detections[0].keypoints[3].y - head_mid_y;
+                    // 眼睛中点为起点，向上移动一段距离就是头
+                    x = head_mid_x - eye_to_mouth_x * 1.0;
+                    y = head_mid_y - eye_to_mouth_y * 1.8;
+                    // 计算头的宽度（4，5关键点的距离）
+                    const head_width = Math.sqrt(
+                        (canvas.width*this.faceResults.detections[0].keypoints[4].x - canvas.width*this.faceResults.detections[0].keypoints[5].x) ** 2 +
+                        (canvas.height*this.faceResults.detections[0].keypoints[4].y - canvas.height*this.faceResults.detections[0].keypoints[5].y) ** 2
+                    );
+                    w = head_width * 1.5;
+                    h = head_width * 1.5;
+                    x = x + w * 0.5
+                    y = y - h * 0.5
+                }
+                // 考虑mustache的情况
+                if (this.pics == 'mustache'){
+                    // 计算2,3关键点的中点
+                    const mouth_mid_x = (canvas.width*this.faceResults.detections[0].keypoints[2].x + canvas.width*this.faceResults.detections[0].keypoints[3].x) / 2;
+                    const mouth_mid_y = (canvas.height*this.faceResults.detections[0].keypoints[2].y + canvas.height*this.faceResults.detections[0].keypoints[3].y) / 2;
+                    // 计算2,3关键点的距离
+                    const eyes_distance = Math.sqrt(
+                        (canvas.width*this.faceResults.detections[0].keypoints[0].x - canvas.width*this.faceResults.detections[0].keypoints[1].x) ** 2 +
+                        (canvas.height*this.faceResults.detections[0].keypoints[0].y - canvas.height*this.faceResults.detections[0].keypoints[1].y) ** 2
+                    );
+                    x = mouth_mid_x;
+                    y = mouth_mid_y;
+                    w = eyes_distance;
+                    h = eyes_distance * 0.5;
+                    x = x + w * 0.5;
+                    y = y - h * 0.5;
+                }
+                // 考虑nose的情况
+                if (this.pics == 'nose'){
+                    // 计算0，1关键点间距
+                    const eyes_distance = Math.sqrt(
+                        (canvas.width*this.faceResults.detections[0].keypoints[0].x - canvas.width*this.faceResults.detections[0].keypoints[1].x) ** 2 +
+                        (canvas.height*this.faceResults.detections[0].keypoints[0].y - canvas.height*this.faceResults.detections[0].keypoints[1].y) ** 2
+                    );
+                    // 位置设置为2号关键点
+                    x = canvas.width*this.faceResults.detections[0].keypoints[2].x;
+                    y = canvas.height*this.faceResults.detections[0].keypoints[2].y;
+                    // 鼻子图片的比例为1：1，大小为眼睛间距的0.6
+                    w = eyes_distance * 0.6;
+                    h = eyes_distance * 0.6;
+                    x = x + w * 0.5;
+                    y = y - h * 0.5;
+                }
+                x = canvas.width - x;
+                imgCanvasCtx.drawImage(img, x, y, w, h);
+            }
+
             // 绘制人脸关键点
             if (this.faceResults && this.faceResults.detections) {
                 this.drawFaceDetections(canvasCtx, this.faceResults.detections);
             }
-
-            canvasCtx.restore(); // 恢复上下文状态
 
             // Call this function again to keep predicting when the browser is ready.
             if (this.webcamRunning) {
@@ -297,21 +382,15 @@ export default {
         recognizeTrajectory(trajectory) {
             // 调用KNN识别函数，暂时不写完整
             const recognizedType = this.knnRecognize(trajectory);
+            console.log("识别到类别：", recognizedType);
             if (recognizedType) {
                 this.pics = recognizedType;
-                this.applySticker(recognizedType);
+                this.pic_num = Math.floor(Math.random() * 3);
             }
         },
         knnRecognize(trajectory) {
             // KNN识别逻辑，暂时不写完整
-            return ['hat', 'mustache', 'glasses', 'nose'][Math.floor(Math.random() * 4)];
-        },
-        applySticker(type) {
-            // 随机选择一个贴图
-            const randomIndex = Math.floor(Math.random() * 3) + 1;
-            const imgPath = `/GestureMagic/imgs/${type}${randomIndex}.png`;
-            // 贴图逻辑，暂时不写完整
-            // console.log(`Applying sticker: ${imgPath}`);
+            return ['hat', 'mustache', 'glass', 'nose'][Math.floor(Math.random() * 4)];
         }
     }
 }
@@ -341,17 +420,13 @@ export default {
 }
 
 .camera-feed {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: fill; /* fill: 填满空间但可能形变，contain: 保持比例但留有空白，cover: 保持比例但填满 */
     display: block;
-    /* 居中 */
-    margin: auto;
     position: absolute;
     top: 0;
-    bottom: 0;
     left: 0;
-    right: 0;
 }
 
 .camera-overlay {
