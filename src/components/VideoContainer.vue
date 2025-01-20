@@ -41,10 +41,14 @@ export default {
             glass: [],
             hat: [],
             mustache: [],
-            nose: []
+            nose: [],
+            // 保存images和labels数组，用于knn聚类
+            images_knn: undefined,
+            labels_knn: undefined,
         }
     },
     mounted() {
+        this.loadKnnData();
         this.loadDrawingUtils();
         this.loadImage();
         this.createGestureLandmarker();
@@ -59,6 +63,19 @@ export default {
                 this.drawUtilsLoaded = true;
             };
             document.head.appendChild(script);
+        },
+        async loadKnnData() {
+            // 加载knn数据，先读取/GestureMagic/knn_model.json
+            try {
+                const response = await fetch('/GestureMagic/knn_model.json');
+                const data = await response.json();
+                // 读取数据
+                this.images_knn = data.images;
+                this.labels_knn = data.labels;
+                console.log("labels_knn:", this.labels_knn);
+            } catch (error) {
+                console.error('Error loading KNN data:', error);
+            }
         },
         loadImage(){
             const imagePaths = {
@@ -392,6 +409,10 @@ export default {
             }
         },
         knnRecognize(trajectory) {
+            // 如果this.images_knn和this.labels_knn没有加载完成，返回undefined
+            if (!this.images_knn || !this.labels_knn) {
+                return undefined;
+            }
             // KNN识别逻辑
             // 新建两个数组xs和ys
             let xs = [];
@@ -415,10 +436,6 @@ export default {
                     maxY = trajectory[i].y;
                 }
             }
-            console.log("minX:", minX);
-            console.log("maxX:", maxX);
-            console.log("minY:", minY);
-            console.log("maxY:", maxY);
             // 找到较长的边长
             const side = Math.max(maxX - minX, maxY - minY);
             // 将trajectory中的点映射到[0,20]区间
@@ -426,9 +443,6 @@ export default {
                 xs.push((trajectory[i].x - minX) / side * 20);
                 ys.push((trajectory[i].y - minY) / side * 20);
             }
-            console.log("trajectory:", trajectory);
-            console.log("xs:", xs); 
-            console.log("ys:", ys);
             // 创建一个20x20的画布，但不用显示，然后将xs,ys中的点和其中的连线绘制到画布上（宽度为2）
             const canvas_knn = document.createElement("canvas");
             // const canvas_knn = this.$refs.dev_canvas;
@@ -438,6 +452,7 @@ export default {
             const ctx = canvas_knn.getContext("2d");
             ctx.fillStyle = "white";
             ctx.fillRect(0, 0, 20, 20);
+            // 画连线
             ctx.strokeStyle = "black";
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -446,14 +461,30 @@ export default {
                 ctx.lineTo(xs[i], ys[i]);
             }
             ctx.stroke();
-            // 下载画布中的图片到本地
-            const a = document.createElement("a");
-            a.href = canvas_knn.toDataURL();
-            a.download = "trajectory.png";
-            a.click();
-
-
-            return ['hat', 'mustache', 'glass', 'nose'][Math.floor(Math.random() * 4)];
+            // 从画布中获取图像数据，编程400x1的数组，其中400代表20x20个像素点，转化的时候将RGB转化为灰度值（0-255），透明度忽略掉
+            const imgData = ctx.getImageData(0, 0, 20, 20).data;
+            let imgDataArray = [];
+            for (let i = 0; i < imgData.length; i += 4) {
+                imgDataArray.push((imgData[i] + imgData[i + 1] + imgData[i + 2]) / 3);
+            }
+            // 手动实现knn聚类，预测imgDataArray对应的类别
+            // this.images_knn是一个二维数组，每个元素是一个长400的数组
+            // this.labels_knn是一个一维数组，每个元素是数字0.0, 1.0, 2.0, 3.0中的一个，分别对应'hat', 'mustache', 'glasses', 'nose'
+            // 计算imgDataArray和this.images_knn中每个元素的距离，找到距离最近的元素的下标，返回this.labels_knn中对应的类别
+            let minDis = 255*255*400;
+            let minIndex = -1;
+            for (let i = 0; i < this.images_knn.length; i++) {
+                let dis = 0;
+                for (let j = 0; j < imgDataArray.length; j++) {
+                    dis += (imgDataArray[j] - this.images_knn[i][j]) * (imgDataArray[j] - this.images_knn[i][j]);
+                }
+                if (dis < minDis) {
+                    minDis = dis;
+                    minIndex = i;
+                }
+            }
+            const label_id =  this.labels_knn[minIndex];
+            return ['hat', 'mustache', 'glass', 'nose'][parseInt(label_id)];
         }
     }
 }
