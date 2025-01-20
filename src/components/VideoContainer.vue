@@ -1,4 +1,7 @@
 <template>
+    <div class="temp_dev">
+        <canvas ref="dev_canvas" class="canvas_dev"></canvas>
+    </div>
     <div class="right">
         <div class="camera-container">
             <!-- 视频流显示 -->
@@ -389,7 +392,67 @@ export default {
             }
         },
         knnRecognize(trajectory) {
-            // KNN识别逻辑，暂时不写完整
+            // KNN识别逻辑
+            // 新建两个数组xs和ys
+            let xs = [];
+            let ys = [];
+            // 找到trajectory中x和y的最大最小值
+            let minX = trajectory[0].x;
+            let maxX = trajectory[0].x;
+            let minY = trajectory[0].y;
+            let maxY = trajectory[0].y;
+            for (let i = 1; i < trajectory.length; i++) {
+                if (trajectory[i].x < minX) {
+                    minX = trajectory[i].x;
+                }
+                if (trajectory[i].x > maxX) {
+                    maxX = trajectory[i].x;
+                }
+                if (trajectory[i].y < minY) {
+                    minY = trajectory[i].y;
+                }
+                if (trajectory[i].y > maxY) {
+                    maxY = trajectory[i].y;
+                }
+            }
+            console.log("minX:", minX);
+            console.log("maxX:", maxX);
+            console.log("minY:", minY);
+            console.log("maxY:", maxY);
+            // 找到较长的边长
+            const side = Math.max(maxX - minX, maxY - minY);
+            // 将trajectory中的点映射到[0,20]区间
+            for (let i = 0; i < trajectory.length; i++) {
+                xs.push((trajectory[i].x - minX) / side * 20);
+                ys.push((trajectory[i].y - minY) / side * 20);
+            }
+            console.log("trajectory:", trajectory);
+            console.log("xs:", xs); 
+            console.log("ys:", ys);
+            // 创建一个20x20的画布，但不用显示，然后将xs,ys中的点和其中的连线绘制到画布上（宽度为2）
+            const canvas_knn = document.createElement("canvas");
+            // const canvas_knn = this.$refs.dev_canvas;
+            canvas_knn.width = 20;
+            canvas_knn.height = 20;
+            // 把画布画成全白的
+            const ctx = canvas_knn.getContext("2d");
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, 20, 20);
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xs[0], ys[0]);
+            for (let i = 1; i < xs.length; i++) {
+                ctx.lineTo(xs[i], ys[i]);
+            }
+            ctx.stroke();
+            // 下载画布中的图片到本地
+            const a = document.createElement("a");
+            a.href = canvas_knn.toDataURL();
+            a.download = "trajectory.png";
+            a.click();
+
+
             return ['hat', 'mustache', 'glass', 'nose'][Math.floor(Math.random() * 4)];
         }
     }
@@ -437,3 +500,12 @@ export default {
     height: 100%;
 }
 </style>
+
+.canvas_dev {
+    position: absolute;
+    top: 20%;
+    left: 40%;
+    width: 10%;
+    height: 10%;
+    z-index: 100;
+}
