@@ -1,29 +1,22 @@
-# GestureMagic
+# 手势魔法
 
-This template should help get you started developing with Vue 3 in Vite.
+## 临时运行
 
-## Recommended IDE Setup
+需要安装好node环境，然后执行以下命令
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+```bash
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Compile and Minify for Production
+## 编译更新
 
-```sh
+```bash
 npm run build
 ```
+
+编译出的静态文件存放在`./GestureMagic`目录下
+
+## 更换背景图片
+
+将新的背景图片替换`./public/static/bgc.jpg`即可

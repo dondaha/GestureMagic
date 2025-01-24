@@ -45,6 +45,10 @@ export default {
             // 保存images和labels数组，用于knn聚类
             images_knn: undefined,
             labels_knn: undefined,
+            // 上一次还在绘制的时刻
+            lastPaintTime: 0,
+            // 上一次执行擦除的时刻，其后一段时间内禁止绘制
+            lastEraseTime: 0
         }
     },
     mounted() {
@@ -256,9 +260,9 @@ export default {
             }
 
             // 绘制人脸关键点
-            if (this.faceResults && this.faceResults.detections) {
-                this.drawFaceDetections(canvasCtx, this.faceResults.detections);
-            }
+            // if (this.faceResults && this.faceResults.detections) {
+            //     this.drawFaceDetections(canvasCtx, this.faceResults.detections);
+            // }
 
             // Call this function again to keep predicting when the browser is ready.
             if (this.webcamRunning) {
@@ -293,7 +297,9 @@ export default {
                     lineWidth: 1
                 });
 
-                if (this.handState === "PAINT") {
+                const currentTime = new Date().getTime();
+
+                if (this.handState === "PAINT" && currentTime - this.lastEraseTime > 500) {
                     const thumbTip = mirroredLandmarks[4];
                     const indexTip = mirroredLandmarks[8];
                     const midPoint = {
@@ -301,8 +307,8 @@ export default {
                         y: (thumbTip.y + indexTip.y) / 2
                     };
                     this.trajectory.push(midPoint);
-                    this.drawTrajectory(ctx);
                 }
+                this.drawTrajectory(ctx);
             }
         },
         drawFaceDetections(ctx, detections) {
@@ -334,15 +340,21 @@ export default {
         },
         poseDetected(results) {
             this.inferState(results);
-            if (this.handState === "NONE" || this.handState === "ERASE") {
-                if (this.handState === "ERASE") {
-                    this.pics = undefined;
-                } else {
-                    if (this.lasthandState === "PAINT") {
-                        this.recognizeTrajectory(this.trajectory);
-                    }
-                }
+            const currentTime = new Date().getTime();
+            // 如果当前状态是PAINT，记录时间
+            if (this.handState === "PAINT") {
+                this.lastPaintTime = currentTime;
+            }
+            // 如果已经1s处于none状态，清空trajectory并识别
+            if (this.trajectory.length>0 && this.handState === "NONE" && currentTime - this.lastPaintTime > 1000) {
+                this.recognizeTrajectory(this.trajectory);
+                console.log("清空轨迹");
                 this.trajectory = [];
+            }
+            // 如果当前状态是ERASE且trajectory为空
+            if (this.handState === "ERASE" && this.trajectory.length === 0) {
+                this.pics = undefined;
+                this.lastEraseTime = currentTime;
             }
         },
         inferState(results) {
@@ -373,7 +385,7 @@ export default {
                 let x2 = results.landmarks[0][8].x;
                 let y2 = results.landmarks[0][8].y;
                 let dis = Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
-                if (dis / (maxX - minX + maxY - minY) < 0.15) {
+                if (dis / (maxX - minX + maxY - minY) < 0.12) {
                     this.handState = "PAINT";
                 } else {
                     if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 60 &&
@@ -410,7 +422,7 @@ export default {
         },
         knnRecognize(trajectory) {
             // 如果this.images_knn和this.labels_knn没有加载完成，返回undefined
-            if (!this.images_knn || !this.labels_knn) {
+            if (!this.images_knn || !this.labels_knn || trajectory.length < 5) {
                 return undefined;
             }
             // KNN识别逻辑
