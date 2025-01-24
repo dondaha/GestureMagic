@@ -388,12 +388,14 @@ export default {
                 if (dis / (maxX - minX + maxY - minY) < 0.12) {
                     this.handState = "PAINT";
                 } else {
-                    if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 60 &&
-                        this.calculateAngle(results.landmarks[0][12], results.landmarks[0][11], results.landmarks[0][10], results.landmarks[0][9]) > 60 &&
-                        this.calculateAngle(results.landmarks[0][16], results.landmarks[0][15], results.landmarks[0][14], results.landmarks[0][13]) > 60 &&
-                        this.calculateAngle(results.landmarks[0][20], results.landmarks[0][19], results.landmarks[0][18], results.landmarks[0][17]) > 60) {
-                        this.handState = "ERASE";
-                    } else {
+                    if (this.calculateAngle(results.landmarks[0][8], results.landmarks[0][7], results.landmarks[0][6], results.landmarks[0][5]) > 70 &&
+                        this.calculateAngle(results.landmarks[0][12], results.landmarks[0][11], results.landmarks[0][10], results.landmarks[0][9]) > 70 &&
+                        this.calculateAngle(results.landmarks[0][16], results.landmarks[0][15], results.landmarks[0][14], results.landmarks[0][13]) > 70 &&
+                        this.calculateAngle(results.landmarks[0][20], results.landmarks[0][19], results.landmarks[0][18], results.landmarks[0][17]) > 70) 
+                        {
+                            this.handState = "ERASE";
+                        } 
+                    else {
                         this.handState = "NONE";
                     }
                 }
@@ -448,12 +450,10 @@ export default {
                     maxY = trajectory[i].y;
                 }
             }
-            // 找到较长的边长
-            const side = Math.max(maxX - minX, maxY - minY);
             // 将trajectory中的点映射到[0,20]区间
             for (let i = 0; i < trajectory.length; i++) {
-                xs.push((trajectory[i].x - minX) / side * 20);
-                ys.push((trajectory[i].y - minY) / side * 20);
+                xs.push((trajectory[i].x - minX) / (maxX - minX) * 20);
+                ys.push((trajectory[i].y - minY) / (maxY - minY) * 20);
             }
             // 创建一个20x20的画布，但不用显示，然后将xs,ys中的点和其中的连线绘制到画布上（宽度为2）
             const canvas_knn = document.createElement("canvas");
@@ -473,6 +473,12 @@ export default {
                 ctx.lineTo(xs[i], ys[i]);
             }
             ctx.stroke();
+            // 将画布内容下载到本地
+            // const a = document.createElement("a");
+            // a.href = canvas_knn.toDataURL();
+            // a.download = "trajectory.png";
+            // a.click();
+
             // 从画布中获取图像数据，编程400x1的数组，其中400代表20x20个像素点，转化的时候将RGB转化为灰度值（0-255），透明度忽略掉
             const imgData = ctx.getImageData(0, 0, 20, 20).data;
             let imgDataArray = [];
