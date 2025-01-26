@@ -83,10 +83,10 @@ export default {
         },
         loadImage(){
             const imagePaths = {
-                glass: ['/GestureMagic/imgs/glasses1.png', '/GestureMagic/imgs/glasses2.png', '/GestureMagic/imgs/glasses3.png'],
-                hat: ['/GestureMagic/imgs/hat1.png', '/GestureMagic/imgs/hat2.png', '/GestureMagic/imgs/hat3.png'],
-                mustache: ['/GestureMagic/imgs/mustache1.png', '/GestureMagic/imgs/mustache2.png', '/GestureMagic/imgs/mustache3.png'],
-                nose: ['/GestureMagic/imgs/nose1.png', '/GestureMagic/imgs/nose2.png', '/GestureMagic/imgs/nose3.png']
+                glass: ['/GestureMagic/imgs/glasses1.png', '/GestureMagic/imgs/glasses2.png', '/GestureMagic/imgs/glasses3.png', '/GestureMagic/imgs/glasses4.png', '/GestureMagic/imgs/glasses5.png'],
+                hat: ['/GestureMagic/imgs/hat1.png', '/GestureMagic/imgs/hat2.png', '/GestureMagic/imgs/hat3.png', '/GestureMagic/imgs/hat4.png', '/GestureMagic/imgs/hat5.png'],
+                mustache: ['/GestureMagic/imgs/mustache1.png', '/GestureMagic/imgs/mustache2.png', '/GestureMagic/imgs/mustache3.png', '/GestureMagic/imgs/mustache4.png', '/GestureMagic/imgs/mustache5.png'],
+                nose: ['/GestureMagic/imgs/nose1.png', '/GestureMagic/imgs/nose2.png', '/GestureMagic/imgs/nose3.png', '/GestureMagic/imgs/nose4.png', '/GestureMagic/imgs/nose5.png']
             };
             for (const [key, paths] of Object.entries(imagePaths)) {
                 paths.forEach(path => {
@@ -419,7 +419,7 @@ export default {
             console.log("识别到类别：", recognizedType);
             if (recognizedType) {
                 this.pics = recognizedType;
-                this.pic_num = Math.floor(Math.random() * 3);
+                this.pic_num = Math.floor(Math.random() * 5);
             }
         },
         knnRecognize(trajectory) {
