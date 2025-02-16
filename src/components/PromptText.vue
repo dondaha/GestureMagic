@@ -18,7 +18,7 @@ export default {
 <style scoped>
 .promptText {
   position: absolute;
-  top: 14%;
+  top: 9%;
   width: 50%;
   right: 8%;
   height: 8%;
